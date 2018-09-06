@@ -15,10 +15,10 @@ os.environ['OMP_NUM_THREADS'] = '1'
 def get_args():
     parser = argparse.ArgumentParser(description=None)
     parser.add_argument('--env', default='Breakout-v4', type=str, help='gym environment')
-    parser.add_argument('--processes', default=1, type=int, help='number of processes to train with')
+    parser.add_argument('--processes', default=20, type=int, help='number of processes to train with')
     parser.add_argument('--render', default=False, type=bool, help='renders the atari environment')
     parser.add_argument('--test', default=False, type=bool, help='sets lr=0, chooses most likely actions')
-    parser.add_argument('--rnn_steps', default=1, type=int, help='steps to train LSTM over')
+    parser.add_argument('--rnn_steps', default=20, type=int, help='steps to train LSTM over')
     parser.add_argument('--lr', default=1e-4, type=float, help='learning rate')
     parser.add_argument('--seed', default=1, type=int, help='seed random # generators (for reproducibility)')
     parser.add_argument('--gamma', default=0.99, type=float, help='rewards discount factor')
@@ -118,7 +118,7 @@ def train(shared_model, shared_optimizer, rank, args, info):
     start_time = last_disp_time = time.time()
     episode_length, epr, eploss, done = 0, 0, 0, True  # bookkeeping
 
-    while info['frames'][0] <= 1e8 or args.test:  # openai baselines uses 40M frames...we'll use 80M
+    while info['frames'][0] <= 8e7 or args.test:  # openai baselines uses 40M frames...we'll use 80M
         model.load_state_dict(shared_model.state_dict())  # sync with shared model
 
         hx = torch.zeros(1, 256) if done else hx.detach()  # rnn activation vector
@@ -140,7 +140,7 @@ def train(shared_model, shared_optimizer, rank, args, info):
 
             info['frames'].add_(1)
             num_frames = int(info['frames'].item())
-            if num_frames % 5e5 == 0:  # save every 5F frames
+            if num_frames % 5e5 == 0:  # save every 2M frames
                 printlog(args, '\n\t{:.0f}F frames: saved model\n'.format(num_frames / 1e5))
                 torch.save(shared_model.state_dict(), args.save_dir + 'model.{:.0f}.tar'.format(num_frames / 1e5))
 
@@ -174,15 +174,9 @@ def train(shared_model, shared_optimizer, rank, args, info):
         shared_optimizer.zero_grad()
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 40)
-        # for n, para in shared_model.named_parameters():
-        #     if n == 'conv1.bias':
-        #         print(info['frames'][0], para)
+
         for param, shared_param in zip(model.parameters(), shared_model.parameters()):
-            if shared_param.grad is None:
-                shared_param._grad = param.grad  # sync gradients with shared model
-                # print(rank, info['frames'][0], 'yes')
-            # else:
-            #     print(rank, info['frames'][0], 'no')
+            if shared_param.grad is None: shared_param._grad = param.grad  # sync gradients with shared model
         shared_optimizer.step()
 
 
