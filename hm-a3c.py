@@ -15,10 +15,10 @@ os.environ['OMP_NUM_THREADS'] = '1'
 def get_args():
     parser = argparse.ArgumentParser(description=None)
     parser.add_argument('--env', default='Breakout-v4', type=str, help='gym environment')
-    parser.add_argument('--processes', default=1, type=int, help='number of processes to train with')
+    parser.add_argument('--processes', default=20, type=int, help='number of processes to train with')
     parser.add_argument('--render', default=False, type=bool, help='renders the atari environment')
     parser.add_argument('--test', default=False, type=bool, help='sets lr=0, chooses most likely actions')
-    parser.add_argument('--rnn_steps', default=1, type=int, help='steps to train LSTM over')
+    parser.add_argument('--rnn_steps', default=20, type=int, help='steps to train LSTM over')
     parser.add_argument('--lr', default=1e-4, type=float, help='learning rate')
     parser.add_argument('--seed', default=1, type=int, help='seed random # generators (for reproducibility)')
     parser.add_argument('--gamma', default=0.99, type=float, help='rewards discount factor')
@@ -37,6 +37,37 @@ def printlog(args, s, end='\n', mode='a'):
     f = open(args.save_dir + 'log.txt', mode)
     f.write(s + '\n')
     f.close()
+
+
+class NNPolicy(nn.Module):  # an actor-critic neural network
+    def __init__(self, channels, memsize, num_actions):
+        super(NNPolicy, self).__init__()
+        self.conv1 = nn.Conv2d(channels, 32, 3, stride=2, padding=1)
+        self.conv2 = nn.Conv2d(32, 32, 3, stride=2, padding=1)
+        self.conv3 = nn.Conv2d(32, 32, 3, stride=2, padding=1)
+        self.conv4 = nn.Conv2d(32, 32, 3, stride=2, padding=1)
+        self.gru = nn.GRUCell(32 * 5 * 5, memsize)
+        self.critic_linear, self.actor_linear = nn.Linear(memsize, 1), nn.Linear(memsize, num_actions)
+
+    def forward(self, inputs, train=True, hard=False):
+        inputs, hx = inputs
+        x = F.elu(self.conv1(inputs))
+        x = F.elu(self.conv2(x))
+        x = F.elu(self.conv3(x))
+        x = F.elu(self.conv4(x))
+        hx = self.gru(x.view(-1, 32 * 5 * 5), (hx))
+        return self.critic_linear(hx), self.actor_linear(hx), hx
+
+    def try_load(self, save_dir):
+        paths = glob.glob(save_dir + '*.tar')
+        step = 0
+        if len(paths) > 0:
+            ckpts = [int(s.split('.')[-2]) for s in paths]
+            ix = np.argmax(ckpts)
+            step = ckpts[ix]
+            self.load_state_dict(torch.load(paths[ix]))
+        print("\tno saved models") if step is 0 else print("\tloaded model: {}".format(paths[ix]))
+        return step
 
 
 class HMPolicy(nn.Module):  # an actor-critic neural network
@@ -58,18 +89,7 @@ class HMPolicy(nn.Module):  # an actor-critic neural network
         hx = self.gru(x.view(-1, 32 * 5 * 5), (hx))
         return self.critic_linear(hx), self.actor_linear(hx), hx
 
-    def try_load_dot(self, save_dir):
-        paths = glob.glob(save_dir + '*.tar')
-        step = 0
-        if len(paths) > 0:
-            ckpts = [float(s.split('.')[-3]+'.'+s.split('.')[-2]) for s in paths]
-            ix = np.argmax(ckpts)
-            step = ckpts[ix]
-            self.load_state_dict(torch.load(paths[ix]))
-        print("\tno saved models") if step is 0 else print("\tloaded model: {}".format(paths[ix]))
-        return step
-
-    def try_load(self, save_dir):
+    def try_load_hm(self, save_dir):
         paths = glob.glob(save_dir + '*.tar')
         step = 0
         if len(paths) > 0:
@@ -105,11 +125,7 @@ def cost_func(args, values, logps, actions, rewards):
 
     # generalized advantage estimation using \delta_t residuals (a policy gradient method)
     delta_t = np.asarray(rewards) + args.gamma * np_values[1:] - np_values[:-1]
-    print("actions", actions)
-    print("torch.tensor(actions).view(-1, 1)", torch.tensor(actions).view(-1, 1))
-    print('logps', logps)
     logpys = logps.gather(1, torch.tensor(actions).view(-1, 1))
-    print('after gather', logpys)
     gen_adv_est = discount(delta_t, args.gamma * args.tau)
     policy_loss = -(logpys.view(-1) * torch.FloatTensor(gen_adv_est.copy())).sum()
 
@@ -133,7 +149,7 @@ def train(shared_model, shared_optimizer, rank, args, info):
     start_time = last_disp_time = time.time()
     episode_length, epr, eploss, done = 0, 0, 0, True  # bookkeeping
 
-    while info['frames'][0] <= 1 or args.test:  # openai baselines uses 40M frames...we'll use 80M
+    while info['frames'][0] <= 8e7 or args.test:  # openai baselines uses 40M frames...we'll use 80M
         model.load_state_dict(shared_model.state_dict())  # sync with shared model
 
         hx = torch.zeros(1, 256) if done else hx.detach()  # rnn activation vector
@@ -155,9 +171,9 @@ def train(shared_model, shared_optimizer, rank, args, info):
 
             info['frames'].add_(1)
             num_frames = int(info['frames'].item())
-            if num_frames % 2e6 == 0:  # save every 2M frames
-                printlog(args, '\n\t{:.0f}M frames: saved model\n'.format(num_frames / 1e6))
-                torch.save(shared_model.state_dict(), args.save_dir + 'model.{:.0f}.tar'.format(num_frames / 1e6))
+            if num_frames % 5e5 == 0:  # save every 2M frames
+                printlog(args, '\n\t{:.0f}F frames: saved model\n'.format(num_frames / 1e5))
+                torch.save(shared_model.state_dict(), args.save_dir + 'model.{:.0f}.tar'.format(num_frames / 1e5))
 
             if done:  # update shared data
                 info['episodes'] += 1
@@ -167,8 +183,8 @@ def train(shared_model, shared_optimizer, rank, args, info):
 
             if rank == 0 and time.time() - last_disp_time > 60:  # print info ~ every minute
                 elapsed = time.strftime("%Hh %Mm %Ss", time.gmtime(time.time() - start_time))
-                printlog(args, 'time {}, episodes {:.0f}, frames {:.1f}M, mean epr {:.2f}, run loss {:.2f}'
-                         .format(elapsed, info['episodes'].item(), num_frames / 1e6,
+                printlog(args, 'time {}, episodes {:.0f}, frames {:.1f}F, mean epr {:.2f}, run loss {:.2f}'
+                         .format(elapsed, info['episodes'].item(), num_frames / 1e5,
                                  info['run_epr'].item(), info['run_loss'].item()))
                 last_disp_time = time.time()
 
@@ -189,15 +205,9 @@ def train(shared_model, shared_optimizer, rank, args, info):
         shared_optimizer.zero_grad()
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 40)
-        # for n, para in shared_model.named_parameters():
-        #     if n == 'conv1.bias':
-        #         print(info['frames'][0], para)
+
         for param, shared_param in zip(model.parameters(), shared_model.parameters()):
-            if shared_param.grad is None:
-                shared_param._grad = param.grad  # sync gradients with shared model
-                # print(rank, info['frames'][0], 'yes')
-            # else:
-            #     print(rank, info['frames'][0], 'no')
+            if shared_param.grad is None: shared_param._grad = param.grad  # sync gradients with shared model
         shared_optimizer.step()
 
 
@@ -219,7 +229,7 @@ if __name__ == "__main__":
     shared_optimizer = SharedAdam(shared_model.parameters(), lr=args.lr)
 
     info = {k: torch.DoubleTensor([0]).share_memory_() for k in ['run_epr', 'run_loss', 'episodes', 'frames']}
-    info['frames'] += shared_model.try_load(args.save_dir) * 1e6
+    info['frames'] += shared_model.try_load(args.save_dir) * 1e5
     if int(info['frames'].item()) == 0: printlog(args, '', end='', mode='w')  # clear log file
 
     processes = []
