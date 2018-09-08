@@ -97,7 +97,6 @@ def cost_func(args, values, logps, actions, rewards):
 def test(pairs, args):
     env = gym.make(args.env)
     model = NNPolicy(channels=1, memsize=args.hidden, num_actions=args.num_actions)
-    f = open(args.save_dir + 'performance_log.txt', 'w')
     for i in range(len(pairs)):
         episodes, epr,  done = 0, 0, False
         state = torch.tensor(prepro(env.reset()))
@@ -105,7 +104,8 @@ def test(pairs, args):
         model.load_state_dict(torch.load(path))
         hx = torch.zeros(1, 256)
         values, logps, actions, rewards = [], [], [], []
-        while episodes < 2:
+        f = open(args.save_dir + 'performance_log.txt', 'a')
+        while episodes < 200:
             with torch.no_grad():
                 value, logit, hx = model((state.view(1, 1, 80, 80), hx))
                 logp = F.log_softmax(logit, dim=-1)
@@ -115,6 +115,7 @@ def test(pairs, args):
                 epr += reward
                 if done:
                     print(episodes, epr)
+                    f.write(str(episodes) + str(epr) + '\n')
                     episodes += 1
                     rewards.append(epr)
                     state = torch.tensor(prepro(env.reset()))
@@ -122,7 +123,7 @@ def test(pairs, args):
         rewards_mean = np.mean(rewards)
         print('index=%d, path='%index + path + ', rewards_mean=%f' % rewards_mean)
         f.write('index=%d, path='%index + path + ', rewards_mean=%f' % rewards_mean + '\n')
-    f.close()
+        f.close()
 
 
 def train(shared_model, shared_optimizer, rank, args, info):
@@ -225,4 +226,5 @@ if __name__ == "__main__":
             print(i)
     else:
         raise Exception("No model to test")
+    pairs = pairs[19:]
     test(pairs, args)
