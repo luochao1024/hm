@@ -8,7 +8,7 @@ from scipy.misc import imresize  # preserves single-pixel info _unlike_ img = im
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.multiprocessing as mp
-
+import get_policies
 os.environ['OMP_NUM_THREADS'] = '1'
 
 
@@ -39,7 +39,7 @@ def printlog(args, s, end='\n', mode='a'):
     f.close()
 
 
-class NNPolicy(nn.Module):  # an actor-critic neural network
+class NNPolicy(nn.Module):  # an actor-critic neural network for machine
     def __init__(self, channels, memsize, num_actions):
         super(NNPolicy, self).__init__()
         self.conv1 = nn.Conv2d(channels, 32, 3, stride=2, padding=1)
@@ -70,9 +70,9 @@ class NNPolicy(nn.Module):  # an actor-critic neural network
         return step
 
 
-class HMPolicy(nn.Module):  # an actor-critic neural network
-    def __init__(self, channels, memsize, num_actions):
-        super(HMPolicy, self).__init__()
+class TDPolicy(nn.Module):  # an actor-critic neural network for third party
+    def __init__(self, channels, memsize, num_actions=2):
+        super(TDPolicy, self).__init__()
         self.conv1 = nn.Conv2d(channels, 32, 3, stride=2, padding=1)
         self.conv2 = nn.Conv2d(32, 32, 3, stride=2, padding=1)
         self.conv3 = nn.Conv2d(32, 32, 3, stride=2, padding=1)
@@ -81,15 +81,16 @@ class HMPolicy(nn.Module):  # an actor-critic neural network
         self.critic_linear, self.actor_linear = nn.Linear(memsize, 1), nn.Linear(memsize, num_actions)
 
     def forward(self, inputs, train=True, hard=False):
-        inputs, hx = inputs
+        inputs, hx, theta = inputs
         x = F.elu(self.conv1(inputs))
         x = F.elu(self.conv2(x))
         x = F.elu(self.conv3(x))
         x = F.elu(self.conv4(x))
-        hx = self.gru(x.view(-1, 32 * 5 * 5), (hx))
+        x = torch.cat(x.view(-1, 32 * 5 * 5), theta)
+        hx = self.gru(x, (hx))
         return self.critic_linear(hx), self.actor_linear(hx), hx
 
-    def try_load_hm(self, save_dir):
+    def try_load_td(self, save_dir):
         paths = glob.glob(save_dir + '*.tar')
         step = 0
         if len(paths) > 0:
@@ -139,29 +140,48 @@ def cost_func(args, values, logps, actions, rewards):
     return policy_loss + 0.5 * value_loss + 0.01 * entropy_loss
 
 
-def train(shared_model, shared_optimizer, rank, args, info):
+def train(shared_td_model, shared_optimizer, human_states_thetas,
+          machine_state_theta, rank, args, info, init_human_index):
     env = gym.make(args.env)  # make a local (unshared) environment
     env.seed(args.seed + rank)
     torch.manual_seed(args.seed + rank)  # seed everything
-    model = NNPolicy(channels=1, memsize=args.hidden, num_actions=args.num_actions)  # a local/unshared model
+    td_model = TDPolicy(channels=1, memsize=args.hidden, num_actions=2)  # a local model for third party
+    hm_model = NNPolicy(channels=1, memsize=args.hidden, num_actions=args.num_actions)  # a model for human or machine
     state = torch.tensor(prepro(env.reset()))  # get first state
 
     start_time = last_disp_time = time.time()
     episode_length, epr, eploss, done = 0, 0, 0, True  # bookkeeping
 
-    while info['frames'][0] <= 8e7 or args.test:  # openai baselines uses 40M frames...we'll use 80M
-        model.load_state_dict(shared_model.state_dict())  # sync with shared model
+    num_human_state = len(human_states_thetas)
+    human_index = init_human_index
+    theta = human_states_thetas[human_index][1]
 
-        hx = torch.zeros(1, 256) if done else hx.detach()  # rnn activation vector
+    while info['frames'][0] <= 8e7 or args.test:
+        td_model.load_state_dict(shared_td_model.state_dict())  # sync with shared model
+
+        td_hx = torch.zeros(1, 256) if done else td_hx.detach()  # initialize hidden state for third party
+        hm_hx = torch.zeros(1, 256)  # initialize hidden state for hm_model
         values, logps, actions, rewards = [], [], [], []  # save values for computing gradientss
 
         for step in range(args.rnn_steps):
             episode_length += 1
-            value, logit, hx = model((state.view(1, 1, 80, 80), hx))
+            value, logit, td_hx = td_model((state.view(1, 1, 80, 80), td_hx, theta))
             logp = F.log_softmax(logit, dim=-1)
-
             action = torch.exp(logp).multinomial(num_samples=1).data[0]  # logp.max(1)[1].data if args.test else
-            state, reward, done, _ = env.step(action.numpy()[0])
+            if action.numpy()[0] == 1:
+                hm_model.load_state_dict(human_states_thetas[human_index][0])
+                possibility = [(i + 1) / sum(range(1, human_index + 2)) for i in range(human_index + 1)]
+                human_index = np.random.choice(range(human_index+1), 1, p=possibility)
+                theta = human_states_thetas[human_index][1]
+            else:
+                hm_model.load_state_dict(machine_state_theta[0])
+                possibility =[(num_human_state - i) / sum(range(1, num_human_state - human_index + 1)) for i in range(human_index, num_human_state)]
+                human_index = np.random.choice(range(human_index, num_human_state), 1, p=possibility)
+                theta = human_states_thetas[human_index][1]
+
+            hm_value, hm_logit, hm_hx = hm_model((state.view(1, 1, 80, 80), hm_hx))
+            hm_action = hm_logit.multinomial(num_samples=1).data[0]
+            state, reward, done, _ = env.step(hm_action.numpy()[0])
             if args.render: env.render()
 
             state = torch.tensor(prepro(state))
@@ -173,7 +193,7 @@ def train(shared_model, shared_optimizer, rank, args, info):
             num_frames = int(info['frames'].item())
             if num_frames % 5e5 == 0:  # save every 2M frames
                 printlog(args, '\n\t{:.0f}F frames: saved model\n'.format(num_frames / 1e5))
-                torch.save(shared_model.state_dict(), args.save_dir + 'model.{:.0f}.tar'.format(num_frames / 1e5))
+                torch.save(shared_td_model.state_dict(), args.save_dir + 'model.{:.0f}.tar'.format(num_frames / 1e5))
 
             if done:  # update shared data
                 info['episodes'] += 1
@@ -197,16 +217,16 @@ def train(shared_model, shared_optimizer, rank, args, info):
             actions.append(action)
             rewards.append(reward)
 
-        next_value = torch.zeros(1, 1) if done else model((state.unsqueeze(0), hx))[0]
+        next_value = torch.zeros(1, 1) if done else td_model((state.unsqueeze(0), td_hx, theta))[0]
         values.append(next_value.detach())
 
         loss = cost_func(args, torch.cat(values), torch.cat(logps), torch.cat(actions), np.asarray(rewards))
         eploss += loss.item()
         shared_optimizer.zero_grad()
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), 40)
+        torch.nn.utils.clip_grad_norm_(td_model.parameters(), 40)
 
-        for param, shared_param in zip(model.parameters(), shared_model.parameters()):
+        for param, shared_param in zip(td_model.parameters(), shared_td_model.parameters()):
             if shared_param.grad is None: shared_param._grad = param.grad  # sync gradients with shared model
         shared_optimizer.step()
 
@@ -225,16 +245,25 @@ if __name__ == "__main__":
     os.makedirs(args.save_dir) if not os.path.exists(args.save_dir) else None  # make dir to save models etc.
 
     torch.manual_seed(args.seed)
-    shared_model = NNPolicy(channels=1, memsize=args.hidden, num_actions=args.num_actions).share_memory()
-    shared_optimizer = SharedAdam(shared_model.parameters(), lr=args.lr)
+    shared_td_model = TDPolicy(channels=1, memsize=args.hidden, num_actions=2).share_memory()
+    shared_optimizer = SharedAdam(shared_td_model.parameters(), lr=args.lr)
 
+    humam_policies = get_policies.get_policies()
+    human_paths_rewards = [(i[1], i[2]) for i in humam_policies]
+    machine_path_reward = human_paths_rewards[len(human_paths_rewards)//2]
+    init_human_index = len(human_paths_rewards)-1
+    highest_reward = 21 # used to normalize theta to [-1, 1]. theta = reward / highest_reward
+
+    human_states_thetas = [(torch.load(path), reward/highest_reward) for path, reward in human_paths_rewards]
+    machine_state_theta = (torch.load(machine_path_reward[0]), machine_path_reward[1]/highest_reward)
     info = {k: torch.DoubleTensor([0]).share_memory_() for k in ['run_epr', 'run_loss', 'episodes', 'frames']}
-    info['frames'] += shared_model.try_load(args.save_dir) * 1e5
+    info['frames'] += shared_td_model.try_load_td(args.save_dir) * 1e6
     if int(info['frames'].item()) == 0: printlog(args, '', end='', mode='w')  # clear log file
 
     processes = []
     for rank in range(args.processes):
-        p = mp.Process(target=train, args=(shared_model, shared_optimizer, rank, args, info))
+        p = mp.Process(target=train, args=(shared_td_model, shared_optimizer, human_states_thetas,
+                                           machine_state_theta, rank, args, info, init_human_index))
         p.start()
         processes.append(p)
     for p in processes: p.join()

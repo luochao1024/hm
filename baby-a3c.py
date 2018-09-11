@@ -15,10 +15,10 @@ os.environ['OMP_NUM_THREADS'] = '1'
 def get_args():
     parser = argparse.ArgumentParser(description=None)
     parser.add_argument('--env', default='Breakout-v4', type=str, help='gym environment')
-    parser.add_argument('--processes', default=20, type=int, help='number of processes to train with')
+    parser.add_argument('--processes', default=1, type=int, help='number of processes to train with')
     parser.add_argument('--render', default=False, type=bool, help='renders the atari environment')
     parser.add_argument('--test', default=False, type=bool, help='sets lr=0, chooses most likely actions')
-    parser.add_argument('--rnn_steps', default=20, type=int, help='steps to train LSTM over')
+    parser.add_argument('--rnn_steps', default=1, type=int, help='steps to train LSTM over')
     parser.add_argument('--lr', default=1e-4, type=float, help='learning rate')
     parser.add_argument('--seed', default=1, type=int, help='seed random # generators (for reproducibility)')
     parser.add_argument('--gamma', default=0.99, type=float, help='rewards discount factor')
@@ -118,7 +118,7 @@ def train(shared_model, shared_optimizer, rank, args, info):
     start_time = last_disp_time = time.time()
     episode_length, epr, eploss, done = 0, 0, 0, True  # bookkeeping
 
-    while info['frames'][0] <= 8e7 or args.test:  # openai baselines uses 40M frames...we'll use 80M
+    while info['frames'][0] <= 1 or args.test:  # openai baselines uses 40M frames...we'll use 80M
         model.load_state_dict(shared_model.state_dict())  # sync with shared model
 
         hx = torch.zeros(1, 256) if done else hx.detach()  # rnn activation vector
@@ -128,8 +128,11 @@ def train(shared_model, shared_optimizer, rank, args, info):
             episode_length += 1
             value, logit, hx = model((state.view(1, 1, 80, 80), hx))
             logp = F.log_softmax(logit, dim=-1)
-
+            print('torch.exp(logp).multinomial(num_samples=1)', torch.exp(logp).multinomial(num_samples=1))
+            print('torch.exp(logp).multinomial(num_samples=1).data', torch.exp(logp).multinomial(num_samples=1).data)
             action = torch.exp(logp).multinomial(num_samples=1).data[0]  # logp.max(1)[1].data if args.test else
+            print("action is", action)
+            print("action.numpy()[0] is", action.numpy()[0])
             state, reward, done, _ = env.step(action.numpy()[0])
             if args.render: env.render()
 
