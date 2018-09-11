@@ -193,8 +193,8 @@ def train(shared_td_model, shared_optimizer, human_states_thetas,
             info['frames'].add_(1)
             num_frames = int(info['frames'].item())
             if num_frames % 5e5 == 0:  # save every 2M frames
-                printlog(args, '\n\t{:.0f}F frames: saved model\n'.format(num_frames / 1e5))
-                torch.save(shared_td_model.state_dict(), args.save_dir + 'model.{:.0f}.tar'.format(num_frames / 1e5))
+                printlog(args, '\n\t{:.0f}F frames: saved td_model\n'.format(num_frames / 1e5))
+                torch.save(shared_td_model.state_dict(), args.save_dir + 'td_model.{:.0f}.tar'.format(num_frames / 1e5))
 
             if done:  # update shared data
                 info['episodes'] += 1
@@ -258,7 +258,7 @@ if __name__ == "__main__":
     human_states_thetas = [(torch.load(path), reward/highest_reward) for path, reward in human_paths_rewards]
     machine_state_theta = (torch.load(machine_path_reward[0]), machine_path_reward[1]/highest_reward)
     info = {k: torch.DoubleTensor([0]).share_memory_() for k in ['run_epr', 'run_loss', 'episodes', 'frames']}
-    info['frames'] += shared_td_model.try_load_td(args.save_dir) * 1e6
+    info['frames'] += shared_td_model.try_load_td(args.save_dir) * 1e5
     if int(info['frames'].item()) == 0: printlog(args, '', end='', mode='w')  # clear log file
 
     processes = []
