@@ -77,7 +77,7 @@ class TDPolicy(nn.Module):  # an actor-critic neural network for third party
         self.conv2 = nn.Conv2d(32, 32, 3, stride=2, padding=1)
         self.conv3 = nn.Conv2d(32, 32, 3, stride=2, padding=1)
         self.conv4 = nn.Conv2d(32, 32, 3, stride=2, padding=1)
-        self.gru = nn.GRUCell(32 * 5 * 5, memsize)
+        self.gru = nn.GRUCell(32 * 5 * 5 + 1, memsize)
         self.critic_linear, self.actor_linear = nn.Linear(memsize, 1), nn.Linear(memsize, num_actions)
 
     def forward(self, inputs, train=True, hard=False):
@@ -86,7 +86,7 @@ class TDPolicy(nn.Module):  # an actor-critic neural network for third party
         x = F.elu(self.conv2(x))
         x = F.elu(self.conv3(x))
         x = F.elu(self.conv4(x))
-        x = torch.cat((x.view(-1, 32 * 5 * 5), torch.tensor([[theta]])))
+        x = torch.cat((x.view(-1, 32 * 5 * 5), torch.tensor([[theta]])), dim=1)
         hx = self.gru(x, (hx))
         return self.critic_linear(hx), self.actor_linear(hx), hx
 
