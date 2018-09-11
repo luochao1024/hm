@@ -180,7 +180,7 @@ def train(shared_td_model, shared_optimizer, human_states_thetas,
                 theta = human_states_thetas[human_index][1]
 
             hm_value, hm_logit, hm_hx = hm_model((state.view(1, 1, 80, 80), hm_hx))
-            hm_action = hm_logit.multinomial(num_samples=1).data[0]
+            hm_action = F.softmax(hm_logit).multinomial(num_samples=1).data[0]
             state, reward, done, _ = env.step(hm_action.numpy()[0])
             if args.render: env.render()
 
