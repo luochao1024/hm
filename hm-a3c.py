@@ -171,12 +171,12 @@ def train(shared_td_model, shared_optimizer, human_states_thetas,
             if action.numpy()[0] == 1:
                 hm_model.load_state_dict(human_states_thetas[human_index][0])
                 possibility = [(i + 1) / sum(range(1, human_index + 2)) for i in range(human_index + 1)]
-                human_index = np.random.choice(range(human_index+1), 1, p=possibility)
+                human_index = np.random.choice(range(human_index+1), 1, p=possibility)[0]
                 theta = human_states_thetas[human_index][1]
             else:
                 hm_model.load_state_dict(machine_state_theta[0])
                 possibility =[(num_human_state - i) / sum(range(1, num_human_state - human_index + 1)) for i in range(human_index, num_human_state)]
-                human_index = np.random.choice(range(human_index, num_human_state), 1, p=possibility)
+                human_index = np.random.choice(range(human_index, num_human_state), 1, p=possibility)[0]
                 theta = human_states_thetas[human_index][1]
 
             hm_value, hm_logit, hm_hx = hm_model((state.view(1, 1, 80, 80), hm_hx))
