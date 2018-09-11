@@ -149,6 +149,7 @@ def test(pairs, args):
         index, path = pairs[i]
         td_model.load_state_dict(torch.load(path))
         td_hx = torch.zeros(1, 256)
+        hm_hx = torch.zeros(1, 256)
         td_values, td_logps, td_actions, td_rewards = [], [], [], []
         f = open(args.save_dir + 'performance_log.txt', 'a')
         while episodes < 200:
