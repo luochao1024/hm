@@ -86,7 +86,7 @@ class TDPolicy(nn.Module):  # an actor-critic neural network for third party
         x = F.elu(self.conv2(x))
         x = F.elu(self.conv3(x))
         x = F.elu(self.conv4(x))
-        x = torch.cat(x.view(-1, 32 * 5 * 5), theta)
+        x = torch.cat((x.view(-1, 32 * 5 * 5), torch.tensor([theta])))
         hx = self.gru(x, (hx))
         return self.critic_linear(hx), self.actor_linear(hx), hx
 
