@@ -28,3 +28,8 @@ def get_policies():
     policies = [all_policies[i] for i in index_20]
 
     return policies
+
+if __name__ == "__main__":
+    policies = get_policies()
+    for i, p in enumerate(policies):
+        print(i, p)

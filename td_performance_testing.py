@@ -211,7 +211,7 @@ if __name__ == "__main__":
         raise Exception("Must be using Python 3 with linux!")  # or else you get a deadlock in conv2d
 
     args = get_args()
-    args.save_dir = '{}/'.format(args.env.lower())  # keep the directory structure simple
+    args.save_dir = '{}_td/'.format(args.env.lower())  # keep the directory structure simple
     if args.render:  args.processes = 1; args.test = True  # render mode -> test mode w one process
     if args.test:  args.lr = 0  # don't train in render mode
     args.num_actions = gym.make(args.env).action_space.n  # get the action space of this game
@@ -226,5 +226,11 @@ if __name__ == "__main__":
             print(i, j)
     else:
         raise Exception("No model to test")
-    pairs = pairs[19:]
-    test(pairs, args)
+
+    for pair in pairs:
+        if pair[0] == 65:
+            test([pair], args)
+            break
+
+    # test_pairs = pairs[19:]
+    # test(test_pairs, args)
