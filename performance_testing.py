@@ -10,7 +10,6 @@ import torch.nn.functional as F
 import torch.multiprocessing as mp
 
 
-
 def get_args():
     parser = argparse.ArgumentParser(description=None)
     parser.add_argument('--env', default='PongDeterministic-v4', type=str, help='gym environment')
@@ -124,84 +123,6 @@ def test(pairs, args):
         print('index=%d, path='%index + path + ', rewards_mean=%f' % rewards_mean)
         f.write('index=%d, path='%index + path + ', rewards_mean=%f' % rewards_mean + '\n')
         f.close()
-
-
-def train(shared_model, shared_optimizer, rank, args, info):
-    env = gym.make(args.env)  # make a local (unshared) environment
-    env.seed(args.seed + rank)
-    torch.manual_seed(args.seed + rank)  # seed everything
-    model = NNPolicy(channels=1, memsize=args.hidden, num_actions=args.num_actions)  # a local/unshared model
-    state = torch.tensor(prepro(env.reset()))  # get first state
-
-    start_time = last_disp_time = time.time()
-    episode_length, epr, eploss, done = 0, 0, 0, True  # bookkeeping
-
-    while info['frames'][0] <= 1 or args.test:  # openai baselines uses 40M frames...we'll use 80M
-        model.load_state_dict(shared_model.state_dict())  # sync with shared model
-
-        hx = torch.zeros(1, 256) if done else hx.detach()  # rnn activation vector
-        values, logps, actions, rewards = [], [], [], []  # save values for computing gradientss
-
-        for step in range(args.rnn_steps):
-            episode_length += 1
-            value, logit, hx = model((state.view(1, 1, 80, 80), hx))
-            logp = F.log_softmax(logit, dim=-1)
-
-            action = torch.exp(logp).multinomial(num_samples=1).data[0]  # logp.max(1)[1].data if args.test else
-            state, reward, done, _ = env.step(action.numpy()[0])
-            if args.render: env.render()
-
-            state = torch.tensor(prepro(state))
-            epr += reward
-            reward = np.clip(reward, -1, 1)  # reward
-            done = done or episode_length >= 1e4  # don't playing one ep for too long
-
-            info['frames'].add_(1)
-            num_frames = int(info['frames'].item())
-            if num_frames % 2e6 == 0:  # save every 2M frames
-                printlog(args, '\n\t{:.0f}M frames: saved model\n'.format(num_frames / 1e6))
-                torch.save(shared_model.state_dict(), args.save_dir + 'model.{:.0f}.tar'.format(num_frames / 1e6))
-
-            if done:  # update shared data
-                info['episodes'] += 1
-                interp = 1 if info['episodes'][0] == 1 else 1 - args.horizon
-                info['run_epr'].mul_(1 - interp).add_(interp * epr)
-                info['run_loss'].mul_(1 - interp).add_(interp * eploss)
-
-            if rank == 0 and time.time() - last_disp_time > 60:  # print info ~ every minute
-                elapsed = time.strftime("%Hh %Mm %Ss", time.gmtime(time.time() - start_time))
-                printlog(args, 'time {}, episodes {:.0f}, frames {:.1f}M, mean epr {:.2f}, run loss {:.2f}'
-                         .format(elapsed, info['episodes'].item(), num_frames / 1e6,
-                                 info['run_epr'].item(), info['run_loss'].item()))
-                last_disp_time = time.time()
-
-            if done:  # maybe print info.
-                episode_length, epr, eploss = 0, 0, 0
-                state = torch.tensor(prepro(env.reset()))
-
-            values.append(value)
-            logps.append(logp)
-            actions.append(action)
-            rewards.append(reward)
-
-        next_value = torch.zeros(1, 1) if done else model((state.unsqueeze(0), hx))[0]
-        values.append(next_value.detach())
-
-        loss = cost_func(args, torch.cat(values), torch.cat(logps), torch.cat(actions), np.asarray(rewards))
-        eploss += loss.item()
-        shared_optimizer.zero_grad()
-        loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), 40)
-        # for n, para in shared_model.named_parameters():
-        #     if n == 'conv1.bias':
-        #         print(info['frames'][0], para)
-        for param, shared_param in zip(model.parameters(), shared_model.parameters()):
-            if shared_param.grad is None:
-                shared_param._grad = param.grad  # sync gradients with shared model
-                # print(rank, info['frames'][0], 'yes')
-            # else:
-            #     print(rank, info['frames'][0], 'no')
-        shared_optimizer.step()
 
 
 if __name__ == "__main__":

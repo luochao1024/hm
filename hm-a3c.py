@@ -204,7 +204,7 @@ def train(shared_td_model, shared_optimizer, human_states_thetas,
 
             if rank == 0 and time.time() - last_disp_time > 60:  # print info ~ every minute
                 elapsed = time.strftime("%Hh %Mm %Ss", time.gmtime(time.time() - start_time))
-                printlog(args, 'time {}, episodes {:.0f}, frames {:.1f}F, mean epr {:.2f}, run loss {:.2f}'
+                printlog(args, 'time {}, episodes {:.0f}, frames {:.1f}F, exp running mean of reward {:.2f}, run loss {:.2f}'
                          .format(elapsed, info['episodes'].item(), num_frames / 1e5,
                                  info['run_epr'].item(), info['run_loss'].item()))
                 last_disp_time = time.time()
