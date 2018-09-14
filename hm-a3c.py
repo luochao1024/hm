@@ -183,6 +183,8 @@ def train(shared_td_model, shared_optimizer, human_states_thetas,
             hm_logp = F.log_softmax(hm_logit, dim=-1)
             hm_action = torch.exp(hm_logp).multinomial(num_samples=1).data[0]
             state, reward, done, _ = env.step(hm_action.numpy()[0])
+            if reward != 0:
+                print(reward)
             if args.render: env.render()
 
             state = torch.tensor(prepro(state))
