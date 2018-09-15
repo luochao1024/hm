@@ -156,7 +156,7 @@ def train(shared_td_model, shared_optimizer, human_states_thetas,
     human_index = init_human_index
     theta = human_states_thetas[human_index][1]
 
-    while info['frames'][0] <= 8e7 or args.test:
+    while info['iterations'][0] <= 8e7 or args.test:
         td_model.load_state_dict(shared_td_model.state_dict())  # sync with shared model
 
         td_hx = torch.zeros(1, 256) if done else td_hx.detach()  # initialize hidden state for third party
@@ -170,33 +170,36 @@ def train(shared_td_model, shared_optimizer, human_states_thetas,
             action = torch.exp(logp).multinomial(num_samples=1).data[0]  # logp.max(1)[1].data if args.test else
             if action.numpy()[0] == 1:
                 hm_model.load_state_dict(human_states_thetas[human_index][0])
-                possibility = [(i + 1) / sum(range(1, human_index + 2)) for i in range(human_index + 1)]
+                possibility = [i**2 / sum(np.square(range(1, human_index + 2))) for i in range(1, human_index + 2)]
                 human_index = np.random.choice(range(human_index+1), 1, p=possibility)[0]
                 theta = human_states_thetas[human_index][1]
             else:
                 hm_model.load_state_dict(machine_state_theta[0])
-                possibility =[(num_human_state - i) / sum(range(1, num_human_state - human_index + 1)) for i in range(human_index, num_human_state)]
+                possibility =[(num_human_state - i)**2 / sum(np.square(range(1, num_human_state - human_index + 1))) for i in range(human_index, num_human_state)]
                 human_index = np.random.choice(range(human_index, num_human_state), 1, p=possibility)[0]
                 theta = human_states_thetas[human_index][1]
 
-            hm_value, hm_logit, hm_hx = hm_model((state.view(1, 1, 80, 80), hm_hx))
-            hm_logp = F.log_softmax(hm_logit, dim=-1)
-            hm_action = torch.exp(hm_logp).multinomial(num_samples=1).data[0]
-            state, reward, done, _ = env.step(hm_action.numpy()[0])
-            if reward != 0:
-                print(reward)
+            reward = 0  # reset reward to 0
+            while reward == 0:
+                hm_value, hm_logit, hm_hx = hm_model((state.view(1, 1, 80, 80), hm_hx))
+                hm_logp = F.log_softmax(hm_logit, dim=-1)
+                hm_action = torch.exp(hm_logp).multinomial(num_samples=1).data[0]
+                state, reward, done, _ = env.step(hm_action.numpy()[0])
+                state = torch.tensor(prepro(state))
+                info['frames'].add_(1)
+
+            info['iterations'].add_(1)
             if args.render: env.render()
 
-            state = torch.tensor(prepro(state))
             epr += reward
             reward = np.clip(reward, -1, 1)  # reward
             done = done or episode_length >= 1e4  # don't playing one ep for too long
 
-            info['frames'].add_(1)
-            num_frames = int(info['frames'].item())
-            if num_frames % 5e5 == 0:  # save every 2M frames
-                printlog(args, '\n\t{:.0f}F frames: saved td_model\n'.format(num_frames / 1e5))
-                torch.save(shared_td_model.state_dict(), args.save_dir + 'td_model.{:.0f}.tar'.format(num_frames / 1e5))
+            # num_frames = int(info['frames'].item())
+            num_iterations = int(info['iterations'].item())
+            if num_iterations % 1e3 == 0:  # save every 2M frames
+                printlog(args, '\n\t{:.0f}F frames: saved td_model\n'.format(num_iterations / 1e3))
+                torch.save(shared_td_model.state_dict(), args.save_dir + 'td_model.{:.0f}.tar'.format(num_iterations / 1e3))
 
             if done:  # update shared data
                 info['episodes'] += 1
@@ -206,9 +209,10 @@ def train(shared_td_model, shared_optimizer, human_states_thetas,
 
             if rank == 0 and time.time() - last_disp_time > 60:  # print info ~ every minute
                 elapsed = time.strftime("%Hh %Mm %Ss", time.gmtime(time.time() - start_time))
-                printlog(args, 'time {}, episodes {:.0f}, frames {:.1f}F, exp running mean of reward {:.2f}, run loss {:.2f}'
-                         .format(elapsed, info['episodes'].item(), num_frames / 1e5,
-                                 info['run_epr'].item(), info['run_loss'].item()))
+                printlog(args,
+                         'time {}, episodes {:.0f}, frames {:.1f}*10^5, exp running mean of reward {:.2f}, run loss {:.2f}, num_iterations {:.1f}*10^3'
+                         .format(elapsed, info['episodes'].item(), int(info['frames'].item()) / 1e5,
+                                 info['run_epr'].item(), info['run_loss'].item(), num_iterations/1e3))
                 last_disp_time = time.time()
 
             if done:  # maybe print info.
@@ -241,7 +245,7 @@ if __name__ == "__main__":
         raise Exception("Must be using Python 3 with linux!")  # or else you get a deadlock in conv2d
 
     args = get_args()
-    args.save_dir = '{}_td/'.format(args.env.lower())  # keep the directory structure simple
+    args.save_dir = '{}_td_reward/'.format(args.env.lower())  # keep the directory structure simple
     if args.render:  args.processes = 1; args.test = True  # render mode -> test mode w one process
     if args.test:  args.lr = 0  # don't train in render mode
     args.num_actions = gym.make(args.env).action_space.n  # get the action space of this game
@@ -255,11 +259,11 @@ if __name__ == "__main__":
     human_paths_rewards = [(i[1], i[2]) for i in humam_policies]
     machine_path_reward = human_paths_rewards[len(human_paths_rewards)//2]
     init_human_index = len(human_paths_rewards)-1
-    highest_reward = 21 # used to normalize theta to [-1, 1]. theta = reward / highest_reward
+    highest_reward = 21  # used to normalize theta to [-1, 1]. theta = reward / highest_reward
 
     human_states_thetas = [(torch.load(path), reward/highest_reward) for path, reward in human_paths_rewards]
     machine_state_theta = (torch.load(machine_path_reward[0]), machine_path_reward[1]/highest_reward)
-    info = {k: torch.DoubleTensor([0]).share_memory_() for k in ['run_epr', 'run_loss', 'episodes', 'frames']}
+    info = {k: torch.DoubleTensor([0]).share_memory_() for k in ['run_epr', 'run_loss', 'episodes', 'frames', 'iterations']}
     info['frames'] += shared_td_model.try_load_td(args.save_dir) * 1e5
     if int(info['frames'].item()) == 0: printlog(args, '', end='', mode='w')  # clear log file
 

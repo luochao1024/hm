@@ -1,0 +1,240 @@
+
+	1401T frames: saved model
+
+time 00h 00m 01s, episodes 0, frames 1401.4T, mean epr 0.00, run loss 0.00
+
+	1402T frames: saved model
+
+time 00h 00m 02s, episodes 0, frames 1402.9T, mean epr 0.00, run loss 0.00
+
+	1403T frames: saved model
+
+
+	1404T frames: saved model
+
+time 00h 00m 03s, episodes 0, frames 1404.3T, mean epr 0.00, run loss 0.00
+
+	1405T frames: saved model
+
+time 00h 00m 04s, episodes 0, frames 1405.7T, mean epr 0.00, run loss 0.00
+
+	1406T frames: saved model
+
+
+	1407T frames: saved model
+
+time 00h 00m 05s, episodes 0, frames 1407.1T, mean epr 0.00, run loss 0.00
+
+	1408T frames: saved model
+
+time 00h 00m 06s, episodes 0, frames 1408.6T, mean epr 0.00, run loss 0.00
+
+	1409T frames: saved model
+
+
+	1410T frames: saved model
+
+time 00h 00m 07s, episodes 0, frames 1410.0T, mean epr 0.00, run loss 0.00
+
+	1411T frames: saved model
+
+time 00h 00m 08s, episodes 0, frames 1411.5T, mean epr 0.00, run loss 0.00
+
+	1412T frames: saved model
+
+time 00h 00m 09s, episodes 0, frames 1412.9T, mean epr 0.00, run loss 0.00
+
+	1413T frames: saved model
+
+
+	1414T frames: saved model
+
+time 00h 00m 10s, episodes 0, frames 1414.4T, mean epr 0.00, run loss 0.00
+
+	1415T frames: saved model
+
+time 00h 00m 11s, episodes 0, frames 1415.8T, mean epr 0.00, run loss 0.00
+
+	1416T frames: saved model
+
+
+	1417T frames: saved model
+
+time 00h 00m 12s, episodes 0, frames 1417.3T, mean epr 0.00, run loss 0.00
+
+	1418T frames: saved model
+
+time 00h 00m 13s, episodes 0, frames 1418.6T, mean epr 0.00, run loss 0.00
+
+	1419T frames: saved model
+
+
+	1420T frames: saved model
+
+time 00h 00m 14s, episodes 0, frames 1420.0T, mean epr 0.00, run loss 0.00
+
+	1421T frames: saved model
+
+time 00h 00m 15s, episodes 0, frames 1421.5T, mean epr 0.00, run loss 0.00
+
+	1422T frames: saved model
+
+time 00h 00m 16s, episodes 0, frames 1423.0T, mean epr 0.00, run loss 0.00
+
+	1423T frames: saved model
+
+
+	1424T frames: saved model
+
+time 00h 00m 17s, episodes 0, frames 1424.5T, mean epr 0.00, run loss 0.00
+
+	1425T frames: saved model
+
+time 00h 00m 18s, episodes 0, frames 1425.9T, mean epr 0.00, run loss 0.00
+
+	1426T frames: saved model
+
+
+	1427T frames: saved model
+
+time 00h 00m 19s, episodes 0, frames 1427.4T, mean epr 0.00, run loss 0.00
+
+	1428T frames: saved model
+
+time 00h 00m 20s, episodes 0, frames 1428.7T, mean epr 0.00, run loss 0.00
+
+	1429T frames: saved model
+
+
+	1430T frames: saved model
+
+time 00h 00m 22s, episodes 0, frames 1430.3T, mean epr 0.00, run loss 0.00
+
+	1431T frames: saved model
+
+time 00h 00m 23s, episodes 0, frames 1431.6T, mean epr 0.00, run loss 0.00
+
+	1432T frames: saved model
+
+
+	1433T frames: saved model
+
+time 00h 00m 24s, episodes 0, frames 1433.2T, mean epr 0.00, run loss 0.00
+
+	1434T frames: saved model
+
+time 00h 00m 25s, episodes 0, frames 1434.6T, mean epr 0.00, run loss 0.00
+
+	1435T frames: saved model
+
+
+	1436T frames: saved model
+
+time 00h 00m 26s, episodes 0, frames 1436.0T, mean epr 0.00, run loss 0.00
+
+	1437T frames: saved model
+
+time 00h 00m 27s, episodes 0, frames 1437.4T, mean epr 0.00, run loss 0.00
+
+	1438T frames: saved model
+
+time 00h 00m 28s, episodes 0, frames 1438.8T, mean epr 0.00, run loss 0.00
+
+	1439T frames: saved model
+
+
+	1440T frames: saved model
+
+
+	1440T frames: saved model
+
+time 00h 00m 29s, episodes 0, frames 1440.1T, mean epr 0.00, run loss 0.00
+
+	1441T frames: saved model
+
+time 00h 00m 30s, episodes 0, frames 1441.5T, mean epr 0.00, run loss 0.00
+
+	1442T frames: saved model
+
+
+	1443T frames: saved model
+
+time 00h 00m 31s, episodes 0, frames 1443.1T, mean epr 0.00, run loss 0.00
+
+	1444T frames: saved model
+
+time 00h 00m 32s, episodes 1, frames 1444.4T, mean epr 12.00, run loss 99.88
+
+	1445T frames: saved model
+
+time 00h 00m 33s, episodes 1, frames 1445.9T, mean epr 12.00, run loss 99.88
+
+	1446T frames: saved model
+
+
+	1447T frames: saved model
+
+time 00h 00m 34s, episodes 1, frames 1447.2T, mean epr 12.00, run loss 99.88
+
+	1448T frames: saved model
+
+time 00h 00m 35s, episodes 1, frames 1448.6T, mean epr 12.00, run loss 99.88
+
+	1449T frames: saved model
+
+time 00h 00m 36s, episodes 1, frames 1449.9T, mean epr 12.00, run loss 99.88
+
+	1450T frames: saved model
+
+
+	1451T frames: saved model
+
+time 00h 00m 37s, episodes 1, frames 1451.4T, mean epr 12.00, run loss 99.88
+
+	1452T frames: saved model
+
+time 00h 00m 38s, episodes 1, frames 1452.7T, mean epr 12.00, run loss 99.88
+
+	1453T frames: saved model
+
+
+	1454T frames: saved model
+
+time 00h 00m 39s, episodes 2, frames 1454.0T, mean epr 11.81, run loss 98.24
+
+	1455T frames: saved model
+
+time 00h 00m 40s, episodes 2, frames 1455.4T, mean epr 11.81, run loss 98.24
+
+	1456T frames: saved model
+
+time 00h 00m 41s, episodes 2, frames 1456.8T, mean epr 11.81, run loss 98.24
+
+	1457T frames: saved model
+
+
+	1458T frames: saved model
+
+time 00h 00m 42s, episodes 3, frames 1458.1T, mean epr 11.75, run loss 97.01
+
+	1459T frames: saved model
+
+time 00h 00m 44s, episodes 5, frames 1459.6T, mean epr 11.33, run loss 92.24
+
+	1460T frames: saved model
+
+time 00h 00m 45s, episodes 5, frames 1460.9T, mean epr 11.33, run loss 92.24
+
+	1461T frames: saved model
+
+
+	1462T frames: saved model
+
+time 00h 00m 46s, episodes 8, frames 1462.4T, mean epr 11.01, run loss 86.51
+
+	1463T frames: saved model
+
+time 00h 00m 47s, episodes 9, frames 1463.7T, mean epr 10.95, run loss 85.53
+
+	1464T frames: saved model
+
