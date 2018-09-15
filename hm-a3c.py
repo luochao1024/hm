@@ -197,9 +197,9 @@ def train(shared_td_model, shared_optimizer, human_states_thetas,
 
             # num_frames = int(info['frames'].item())
             num_iterations = int(info['iterations'].item())
-            if num_iterations % 1e3 == 0:  # save every 2M frames
-                printlog(args, '\n\t{:.0f}F frames: saved td_model\n'.format(num_iterations / 1e3))
-                torch.save(shared_td_model.state_dict(), args.save_dir + 'td_model.{:.0f}.tar'.format(num_iterations / 1e3))
+            if num_iterations % 5e4 == 0:  # save every 2M frames
+                printlog(args, '\n\t{:.0f}F frames: saved td_model\n'.format(num_iterations / 1e4))
+                torch.save(shared_td_model.state_dict(), args.save_dir + 'td_model.{:.0f}.tar'.format(num_iterations / 1e4))
 
             if done:  # update shared data
                 info['episodes'] += 1
@@ -258,14 +258,14 @@ if __name__ == "__main__":
     humam_policies = get_policies.get_policies()
     human_paths_rewards = [(i[1], i[2]) for i in humam_policies]
     machine_path_reward = human_paths_rewards[len(human_paths_rewards)//2]
-    init_human_index = len(human_paths_rewards)-1
+    init_human_index = len(human_paths_rewards)-19
     highest_reward = 21  # used to normalize theta to [-1, 1]. theta = reward / highest_reward
 
     human_states_thetas = [(torch.load(path), reward/highest_reward) for path, reward in human_paths_rewards]
     machine_state_theta = (torch.load(machine_path_reward[0]), machine_path_reward[1]/highest_reward)
     info = {k: torch.DoubleTensor([0]).share_memory_() for k in ['run_epr', 'run_loss', 'episodes', 'frames', 'iterations']}
-    info['frames'] += shared_td_model.try_load_td(args.save_dir) * 1e5
-    if int(info['frames'].item()) == 0: printlog(args, '', end='', mode='w')  # clear log file
+    info['iterations'] += shared_td_model.try_load_td(args.save_dir) * 1e4
+    if int(info['iterations'].item()) == 0: printlog(args, '', end='', mode='w')  # clear log file
 
     processes = []
     for rank in range(args.processes):
