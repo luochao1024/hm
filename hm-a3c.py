@@ -25,7 +25,7 @@ def get_args():
     parser.add_argument('--tau', default=1.0, type=float, help='generalized advantage estimation discount')
     parser.add_argument('--horizon', default=0.99, type=float, help='horizon for running averages')
     parser.add_argument('--hidden', default=256, type=int, help='hidden size of GRU')
-    parser.add_argument('--only_human_state', default=False, type=bool, help='renders the atari environment')
+    parser.add_argument('--only_human_state', default=True, type=bool, help='renders the atari environment')
     return parser.parse_args()
 
 
