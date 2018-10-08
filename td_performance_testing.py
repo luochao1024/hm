@@ -15,7 +15,7 @@ def get_args():
     parser = argparse.ArgumentParser(description=None)
     parser.add_argument('--env', default='PongDeterministic-v4', type=str, help='gym environment')
     parser.add_argument('--processes', default=1, type=int, help='number of processes to train with')
-    parser.add_argument('--render', default=True, type=bool, help='renders the atari environment')
+    parser.add_argument('--render', default=False, type=bool, help='renders the atari environment')
     parser.add_argument('--test', default=False, type=bool, help='sets lr=0, chooses most likely actions')
     parser.add_argument('--rnn_steps', default=1, type=int, help='steps to train LSTM over')
     parser.add_argument('--lr', default=1e-4, type=float, help='learning rate')
