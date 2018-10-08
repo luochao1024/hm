@@ -203,6 +203,8 @@ def test(pairs, args):
                                    range(human_index, num_human_state)]
                     human_index = np.random.choice(range(human_index, num_human_state), 1, p=possibility)[0]
                     theta = human_states_thetas[human_index][1]
+
+                reward = 0
                 while reward == 0:
                     hm_value, hm_logit, hm_hx = hm_model((state.view(1, 1, 80, 80), hm_hx))
                     hm_logp = F.log_softmax(hm_logit, dim=-1)
