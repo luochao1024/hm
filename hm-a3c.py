@@ -25,7 +25,7 @@ def get_args():
     parser.add_argument('--tau', default=1.0, type=float, help='generalized advantage estimation discount')
     parser.add_argument('--horizon', default=0.99, type=float, help='horizon for running averages')
     parser.add_argument('--hidden', default=256, type=int, help='hidden size of GRU')
-    parser.add_argument('--only_human_state', default=True, type=bool, help='only use human state to train td policy')
+    parser.add_argument('--only_human_state', default=False, type=bool, help='only use human state to train td policy')
     return parser.parse_args()
 
 
@@ -295,7 +295,7 @@ if __name__ == "__main__":
     torch.manual_seed(args.seed)
     if args.only_human_state:
         print('\n\tonly use human state as an input for td_policy')
-        print('\n\tdir is saved at\n', args.save_dir)
+        print('\n\tdir is saved at', args.save_dir)
         shared_td_model = TDPolicy_h(num_actions=2).share_memory()
     else:
         print('\n\tuse both human state and phisical state as input for td_policy')
