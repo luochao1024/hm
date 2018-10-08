@@ -186,7 +186,7 @@ def train(shared_td_model, shared_optimizer, human_states_thetas,
     human_index = init_human_index
     theta = human_states_thetas[human_index][1]
 
-    while info['iterations'][0] <= 8e2 or args.test:
+    while info['iterations'][0] <= 8e7 or args.test:
         td_model.load_state_dict(shared_td_model.state_dict())  # sync with shared model
 
         if not args.only_human_state:
@@ -298,8 +298,8 @@ if __name__ == "__main__":
         print('\n\tdir is saved at\n', args.save_dir)
         shared_td_model = TDPolicy_h(num_actions=2).share_memory()
     else:
-        print('\n\tuse both human state and phisical state as input for td_policy\n')
-        print('\n\tdir is saved at\n', args.save_dir)
+        print('\n\tuse both human state and phisical state as input for td_policy')
+        print('\n\tdir is saved at', args.save_dir)
         shared_td_model = TDPolicy(channels=1, memsize=args.hidden, num_actions=2).share_memory()
 
     shared_optimizer = SharedAdam(shared_td_model.parameters(), lr=args.lr)
