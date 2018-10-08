@@ -110,9 +110,10 @@ class TDPolicy_h(nn.Module):  # a third party policy trained only based on human
         self.fc2 = nn.Linear(10, 10)
         self.critic_linear, self.actor_linear = nn.Linear(10, 1), nn.Linear(10, num_actions)
 
-    def forward(self, input):
-        input = torch.tensor(input)
-        x = F.elu(self.fc1(input))
+    def forward(self, inputs):
+        inputs = torch.tensor(inputs)
+        inputs = inputs.view(-1, 1)
+        x = F.elu(self.fc1(inputs))
         x = F.elu(self.fc2(x))
         return self.critic_linear(x), self.actor_linear(x)
 
@@ -185,7 +186,7 @@ def train(shared_td_model, shared_optimizer, human_states_thetas,
     human_index = init_human_index
     theta = human_states_thetas[human_index][1]
 
-    while info['iterations'][0] <= 8e7 or args.test:
+    while info['iterations'][0] <= 8e0 or args.test:
         td_model.load_state_dict(shared_td_model.state_dict())  # sync with shared model
 
         if not args.only_human_state:
@@ -261,7 +262,10 @@ def train(shared_td_model, shared_optimizer, human_states_thetas,
             actions.append(action)
             rewards.append(reward)
 
-        next_value = torch.zeros(1, 1) if done else td_model((state.unsqueeze(0), td_hx, theta))[0]
+        if args.only_human_state:
+            next_value = torch.zeros(1, 1) if done else td_model(theta)[0]
+        else:
+            next_value = torch.zeros(1, 1) if done else td_model((state.unsqueeze(0), td_hx, theta))[0]
         values.append(next_value.detach())
 
         loss = cost_func(args, torch.cat(values), torch.cat(logps), torch.cat(actions), np.asarray(rewards))
