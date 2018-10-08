@@ -111,6 +111,7 @@ class TDPolicy_h(nn.Module):  # a third party policy trained only based on human
         self.critic_linear, self.actor_linear = nn.Linear(10, 1), nn.Linear(10, num_actions)
 
     def forward(self, inputs):
+        input = torch.tensor(input)
         x = F.elu(self.fc1(inputs))
         x = F.elu(self.fc2(x))
         return self.critic_linear(x), self.actor_linear(x)
