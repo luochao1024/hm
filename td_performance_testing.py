@@ -24,6 +24,7 @@ def get_args():
     parser.add_argument('--tau', default=1.0, type=float, help='generalized advantage estimation discount')
     parser.add_argument('--horizon', default=0.99, type=float, help='horizon for running averages')
     parser.add_argument('--hidden', default=256, type=int, help='hidden size of GRU')
+    parser.add_argument('--only_human_state', default=True, type=bool, help='renders the atari environment')
     return parser.parse_args()
 
 discount = lambda x, gamma: lfilter([1], [1, -gamma], x[::-1])[::-1]  # discounted rewards one liner
@@ -56,6 +57,32 @@ class TDPolicy(nn.Module):  # an actor-critic neural network for third party
         x = torch.cat((x.view(-1, 32 * 5 * 5), torch.tensor([[theta]])), dim=1)
         hx = self.gru(x, (hx))
         return self.critic_linear(hx), self.actor_linear(hx), hx
+
+    def try_load_td(self, save_dir):
+        paths = glob.glob(save_dir + '*.tar')
+        step = 0
+        if len(paths) > 0:
+            ckpts = [int(s.split('.')[-2]) for s in paths]
+            ix = np.argmax(ckpts)
+            step = ckpts[ix]
+            self.load_state_dict(torch.load(paths[ix]))
+        print("\tno saved models") if step is 0 else print("\tloaded model: {}".format(paths[ix]))
+        return step
+
+
+class TDPolicy_h(nn.Module):  # a third party policy trained only based on human state
+    def __init__(self, num_actions=2):
+        super(TDPolicy_h, self).__init__()
+        self.fc1 = nn.Linear(1, 100)
+        self.fc2 = nn.Linear(100, 10)
+        self.critic_linear, self.actor_linear = nn.Linear(10, 1), nn.Linear(10, num_actions)
+
+    def forward(self, inputs):
+        inputs = torch.tensor(inputs)
+        inputs = inputs.view(-1, 1)
+        x = F.elu(self.fc1(inputs))
+        x = F.elu(self.fc2(x))
+        return self.critic_linear(x), self.actor_linear(x)
 
     def try_load_td(self, save_dir):
         paths = glob.glob(save_dir + '*.tar')
@@ -141,20 +168,27 @@ def test(pairs, args):
     human_index = num_human_state - 1  # init_human_index
     theta = human_states_thetas[human_index][1]
 
-    td_model = TDPolicy(channels=1, memsize=args.hidden, num_actions=2)  # a local model for third party
+    if args.only_human_state:
+        td_model = TDPolicy_h(num_actions=2)  # a local model for third party
+    else:
+        td_model = TDPolicy(channels=1, memsize=args.hidden, num_actions=2)  # a local model for third party
     hm_model = NNPolicy(channels=1, memsize=args.hidden, num_actions=args.num_actions)
     for i in range(len(pairs)):
         episodes, epr,  done = 0, 0, False
         state = torch.tensor(prepro(env.reset()))
         index, path = pairs[i]
         td_model.load_state_dict(torch.load(path))
-        td_hx = torch.zeros(1, 256)
+        if not args.only_human_state:
+            td_hx = torch.zeros(1, 256) if done else td_hx.detach()  # initialize hidden state for third party
         hm_hx = torch.zeros(1, 256)
         td_values, td_logps, td_actions, td_rewards = [], [], [], []
         f = open(args.save_dir + 'performance_log.txt', 'a')
         while episodes < 200:
             with torch.no_grad():
-                td_value, td_logit, td_hx = td_model((state.view(1, 1, 80, 80), td_hx, theta))
+                if args.only_human_state:
+                    td_value, td_logit = td_model(theta)
+                else:
+                    td_value, td_logit, td_hx = td_model((state.view(1, 1, 80, 80), td_hx, theta))
                 td_logp = F.log_softmax(td_logit, dim=-1)
                 td_action = torch.exp(td_logp).multinomial(num_samples=1).data[0]
                 if td_action.numpy()[0] == 1:
@@ -196,7 +230,19 @@ if __name__ == "__main__":
         raise Exception("Must be using Python 3 with linux!")  # or else you get a deadlock in conv2d
 
     args = get_args()
-    args.save_dir = '{}_td/'.format(args.env.lower())  # keep the directory structure simple
+    torch.manual_seed(args.seed)
+    print('this is only_human_state', args.only_human_state)
+    if args.only_human_state:
+        args.save_dir = '{}_td_h/'.format(args.env.lower())  # keep the directory structure simple
+        print('\n\tonly use human state as an input for td_policy')
+        print('\tdir is saved at', args.save_dir)
+        shared_td_model = TDPolicy_h(num_actions=2).share_memory()
+    else:
+        args.save_dir = '{}_td/'.format(args.env.lower())  # keep the directory structure simple
+        print('\n\tuse both human state and physical state as input for td_policy')
+        print('\tdir is saved at', args.save_dir)
+        shared_td_model = TDPolicy(channels=1, memsize=args.hidden, num_actions=2).share_memory()
+
     if args.render:  args.processes = 1; args.test = True  # render mode -> test mode w one process
     if args.test:  args.lr = 0  # don't train in render mode
     args.num_actions = gym.make(args.env).action_space.n  # get the action space of this game
