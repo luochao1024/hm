@@ -25,6 +25,7 @@ def get_args():
     parser.add_argument('--tau', default=1.0, type=float, help='generalized advantage estimation discount')
     parser.add_argument('--horizon', default=0.99, type=float, help='horizon for running averages')
     parser.add_argument('--hidden', default=256, type=int, help='hidden size of GRU')
+    parser.add_argument('--only_human_state', default=True, type=bool, help='only use human state to train td policy')
     return parser.parse_args()
 
 
@@ -102,6 +103,30 @@ class TDPolicy(nn.Module):  # an actor-critic neural network for third party
         return step
 
 
+class TDPolicy_h(nn.Module):  # a third party policy trained only based on human state
+    def __init__(self, num_actions=2):
+        super(TDPolicy_h, self).__init__()
+        self.fc1 = nn.Linear(1, 10)
+        self.fc2 = nn.Linear(10, 10)
+        self.critic_linear, self.actor_linear = nn.Linear(10, 1), nn.Linear(10, num_actions)
+
+    def forward(self, inputs):
+        x = F.elu(self.fc1(inputs))
+        x = F.elu(self.fc2(x))
+        return self.critic_linear(x), self.actor_linear(x)
+
+    def try_load_td(self, save_dir):
+        paths = glob.glob(save_dir + '*.tar')
+        step = 0
+        if len(paths) > 0:
+            ckpts = [int(s.split('.')[-2]) for s in paths]
+            ix = np.argmax(ckpts)
+            step = ckpts[ix]
+            self.load_state_dict(torch.load(paths[ix]))
+        print("\tno saved models") if step is 0 else print("\tloaded model: {}".format(paths[ix]))
+        return step
+
+
 class SharedAdam(torch.optim.Adam):  # extend a pytorch optimizer so it shares grads across processes
     def __init__(self, params, lr=1e-3, betas=(0.9, 0.999), eps=1e-8, weight_decay=0):
         super(SharedAdam, self).__init__(params, lr, betas, eps, weight_decay)
@@ -145,7 +170,10 @@ def train(shared_td_model, shared_optimizer, human_states_thetas,
     env = gym.make(args.env)  # make a local (unshared) environment
     env.seed(args.seed + rank)
     torch.manual_seed(args.seed + rank)  # seed everything
-    td_model = TDPolicy(channels=1, memsize=args.hidden, num_actions=2)  # a local model for third party
+    if args.only_human_state:
+        td_model = TDPolicy_h(num_actions=2)  # a local model for third party
+    else:
+        td_model = TDPolicy(channels=1, memsize=args.hidden, num_actions=2)  # a local model for third party
     hm_model = NNPolicy(channels=1, memsize=args.hidden, num_actions=args.num_actions)  # a model for human or machine
     state = torch.tensor(prepro(env.reset()))  # get first state
 
@@ -159,23 +187,31 @@ def train(shared_td_model, shared_optimizer, human_states_thetas,
     while info['iterations'][0] <= 8e7 or args.test:
         td_model.load_state_dict(shared_td_model.state_dict())  # sync with shared model
 
-        td_hx = torch.zeros(1, 256) if done else td_hx.detach()  # initialize hidden state for third party
+        if not args.only_human_state:
+            td_hx = torch.zeros(1, 256) if done else td_hx.detach()  # initialize hidden state for third party
+
         hm_hx = torch.zeros(1, 256)  # initialize hidden state for hm_model
         values, logps, actions, rewards = [], [], [], []  # save values for computing gradientss
 
         for step in range(args.rnn_steps):
             episode_length += 1
-            value, logit, td_hx = td_model((state.view(1, 1, 80, 80), td_hx, theta))
+            if args.only_human_state:
+                value, logit = td_model(theta)
+            else:
+                value, logit, td_hx = td_model((state.view(1, 1, 80, 80), td_hx, theta))
+
             logp = F.log_softmax(logit, dim=-1)
             action = torch.exp(logp).multinomial(num_samples=1).data[0]  # logp.max(1)[1].data if args.test else
             if action.numpy()[0] == 1:
                 hm_model.load_state_dict(human_states_thetas[human_index][0])
-                possibility = [i**2 / sum(np.square(range(1, human_index + 2))) for i in range(1, human_index + 2)]
+                # possibility = [i**2 / sum(np.square(range(1, human_index + 2))) for i in range(1, human_index + 2)]
+                possibility = [i**3 / sum(np.power(range(1, human_index + 2), 3)) for i in range(1, human_index + 2)]
                 human_index = np.random.choice(range(human_index+1), 1, p=possibility)[0]
                 theta = human_states_thetas[human_index][1]
             else:
                 hm_model.load_state_dict(machine_state_theta[0])
-                possibility =[(num_human_state - i)**2 / sum(np.square(range(1, num_human_state - human_index + 1))) for i in range(human_index, num_human_state)]
+                # possibility =[(num_human_state - i)**2 / sum(np.square(range(1, num_human_state - human_index + 1))) for i in range(human_index, num_human_state)]
+                possibility =[(num_human_state - i)**3 / sum(np.power(range(1, num_human_state - human_index + 1), 3)) for i in range(human_index, num_human_state)]
                 human_index = np.random.choice(range(human_index, num_human_state), 1, p=possibility)[0]
                 theta = human_states_thetas[human_index][1]
 
@@ -245,14 +281,22 @@ if __name__ == "__main__":
         raise Exception("Must be using Python 3 with linux!")  # or else you get a deadlock in conv2d
 
     args = get_args()
-    args.save_dir = '{}_td_reward/'.format(args.env.lower())  # keep the directory structure simple
+    args.save_dir = '{}_td_h/'.format(args.env.lower())  # keep the directory structure simple
     if args.render:  args.processes = 1; args.test = True  # render mode -> test mode w one process
     if args.test:  args.lr = 0  # don't train in render mode
     args.num_actions = gym.make(args.env).action_space.n  # get the action space of this game
     os.makedirs(args.save_dir) if not os.path.exists(args.save_dir) else None  # make dir to save models etc.
 
     torch.manual_seed(args.seed)
-    shared_td_model = TDPolicy(channels=1, memsize=args.hidden, num_actions=2).share_memory()
+    if args.only_human_state:
+        print('\n\tonly use human state as an input for td_policy\n')
+        print('\n\tdir is saved at\n', args.save_dir)
+        shared_td_model = TDPolicy_h(num_actions=2).share_memory()
+    else:
+        print('\n\tuse both human state and phisical state as input for td_policy\n')
+        print('\n\tdir is saved at\n', args.save_dir)
+        shared_td_model = TDPolicy(channels=1, memsize=args.hidden, num_actions=2).share_memory()
+
     shared_optimizer = SharedAdam(shared_td_model.parameters(), lr=args.lr)
 
     humam_policies = get_policies.get_policies()
