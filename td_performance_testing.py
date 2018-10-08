@@ -190,6 +190,7 @@ def test(pairs, args):
                 else:
                     td_value, td_logit, td_hx = td_model((state.view(1, 1, 80, 80), td_hx, theta))
                 td_logp = F.log_softmax(td_logit, dim=-1)
+                print('theta is', theta, 'probability is', torch.exp(td_logp))
                 td_action = torch.exp(td_logp).multinomial(num_samples=1).data[0]
                 if td_action.numpy()[0] == 1:
                     hm_model.load_state_dict(human_states_thetas[human_index][0])
@@ -202,13 +203,14 @@ def test(pairs, args):
                                    range(human_index, num_human_state)]
                     human_index = np.random.choice(range(human_index, num_human_state), 1, p=possibility)[0]
                     theta = human_states_thetas[human_index][1]
+                while reward == 0:
+                    hm_value, hm_logit, hm_hx = hm_model((state.view(1, 1, 80, 80), hm_hx))
+                    hm_logp = F.log_softmax(hm_logit, dim=-1)
+                    hm_action = torch.exp(hm_logp).multinomial(num_samples=1).data[0]
+                    state, reward, done, _ = env.step(hm_action.numpy()[0])
+                    state = torch.tensor(prepro(state))
 
-                hm_value, hm_logit, hm_hx = hm_model((state.view(1, 1, 80, 80), hm_hx))
-                hm_logp = F.log_softmax(hm_logit, dim=-1)
-                hm_action = torch.exp(hm_logp).multinomial(num_samples=1).data[0]
-                state, reward, done, _ = env.step(hm_action.numpy()[0])
                 if args.render: env.render()
-                state = torch.tensor(prepro(state))
                 epr += reward
                 if done:
                     print(episodes, epr)
