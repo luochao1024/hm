@@ -106,8 +106,8 @@ class TDPolicy(nn.Module):  # an actor-critic neural network for third party
 class TDPolicy_h(nn.Module):  # a third party policy trained only based on human state
     def __init__(self, num_actions=2):
         super(TDPolicy_h, self).__init__()
-        self.fc1 = nn.Linear(1, 10)
-        self.fc2 = nn.Linear(10, 10)
+        self.fc1 = nn.Linear(1, 100)
+        self.fc2 = nn.Linear(100, 10)
         self.critic_linear, self.actor_linear = nn.Linear(10, 1), nn.Linear(10, num_actions)
 
     def forward(self, inputs):
@@ -294,7 +294,7 @@ if __name__ == "__main__":
 
     torch.manual_seed(args.seed)
     if args.only_human_state:
-        print('\n\tonly use human state as an input for td_policy\n')
+        print('\n\tonly use human state as an input for td_policy')
         print('\n\tdir is saved at\n', args.save_dir)
         shared_td_model = TDPolicy_h(num_actions=2).share_memory()
     else:
