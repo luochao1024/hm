@@ -231,7 +231,6 @@ if __name__ == "__main__":
 
     args = get_args()
     torch.manual_seed(args.seed)
-    print('this is only_human_state', args.only_human_state)
     if args.only_human_state:
         args.save_dir = '{}_td_h/'.format(args.env.lower())  # keep the directory structure simple
         print('\n\tonly use human state as an input for td_policy')
@@ -259,7 +258,7 @@ if __name__ == "__main__":
         raise Exception("No model to test")
 
     for pair in pairs:
-        if pair[0] == 65:
+        if pair[0] == 20:
             test([pair], args)
             break
 
