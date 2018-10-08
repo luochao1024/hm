@@ -286,21 +286,24 @@ if __name__ == "__main__":
         raise Exception("Must be using Python 3 with linux!")  # or else you get a deadlock in conv2d
 
     args = get_args()
-    args.save_dir = '{}_td_h/'.format(args.env.lower())  # keep the directory structure simple
+    torch.manual_seed(args.seed)
+    print('this is only_human_state', args.only_human_state)
+    if args.only_human_state:
+        args.save_dir = '{}_td_h/'.format(args.env.lower())  # keep the directory structure simple
+        print('\n\tonly use human state as an input for td_policy')
+        print('\tdir is saved at', args.save_dir)
+        shared_td_model = TDPolicy_h(num_actions=2).share_memory()
+    else:
+        args.save_dir = '{}_td/'.format(args.env.lower())  # keep the directory structure simple
+        print('\n\tuse both human state and physical state as input for td_policy')
+        print('\tdir is saved at', args.save_dir)
+        shared_td_model = TDPolicy(channels=1, memsize=args.hidden, num_actions=2).share_memory()
+
     if args.render:  args.processes = 1; args.test = True  # render mode -> test mode w one process
     if args.test:  args.lr = 0  # don't train in render mode
     args.num_actions = gym.make(args.env).action_space.n  # get the action space of this game
     os.makedirs(args.save_dir) if not os.path.exists(args.save_dir) else None  # make dir to save models etc.
 
-    torch.manual_seed(args.seed)
-    if args.only_human_state:
-        print('\n\tonly use human state as an input for td_policy')
-        print('\n\tdir is saved at', args.save_dir)
-        shared_td_model = TDPolicy_h(num_actions=2).share_memory()
-    else:
-        print('\n\tuse both human state and phisical state as input for td_policy')
-        print('\n\tdir is saved at', args.save_dir)
-        shared_td_model = TDPolicy(channels=1, memsize=args.hidden, num_actions=2).share_memory()
 
     shared_optimizer = SharedAdam(shared_td_model.parameters(), lr=args.lr)
 
