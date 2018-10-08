@@ -186,7 +186,7 @@ def train(shared_td_model, shared_optimizer, human_states_thetas,
     human_index = init_human_index
     theta = human_states_thetas[human_index][1]
 
-    while info['iterations'][0] <= 8e0 or args.test:
+    while info['iterations'][0] <= 8e2 or args.test:
         td_model.load_state_dict(shared_td_model.state_dict())  # sync with shared model
 
         if not args.only_human_state:
