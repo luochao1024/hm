@@ -11,12 +11,16 @@ import torch.multiprocessing as mp
 import get_policies
 
 
+def str2bool(v):
+    return v.lower() in ("yes", "true", "t", "1")
+
+
 def get_args():
     parser = argparse.ArgumentParser(description=None)
     parser.add_argument('--env', default='PongDeterministic-v4', type=str, help='gym environment')
     parser.add_argument('--processes', default=1, type=int, help='number of processes to train with')
-    parser.add_argument('--render', default=False, type=bool, help='renders the atari environment')
-    parser.add_argument('--test', default=False, type=bool, help='sets lr=0, chooses most likely actions')
+    parser.add_argument('--render', default=False, type=str2bool, help='renders the atari environment')
+    parser.add_argument('--test', default=False, type=str2bool, help='sets lr=0, chooses most likely actions')
     parser.add_argument('--rnn_steps', default=1, type=int, help='steps to train LSTM over')
     parser.add_argument('--lr', default=1e-4, type=float, help='learning rate')
     parser.add_argument('--seed', default=1, type=int, help='seed random # generators (for reproducibility)')
@@ -24,7 +28,7 @@ def get_args():
     parser.add_argument('--tau', default=1.0, type=float, help='generalized advantage estimation discount')
     parser.add_argument('--horizon', default=0.99, type=float, help='horizon for running averages')
     parser.add_argument('--hidden', default=256, type=int, help='hidden size of GRU')
-    parser.add_argument('--only_human_state', default=True, type=bool, help='renders the atari environment')
+    parser.add_argument('--only_human_state', default=True, type=str2bool, help='renders the atari environment')
     return parser.parse_args()
 
 discount = lambda x, gamma: lfilter([1], [1, -gamma], x[::-1])[::-1]  # discounted rewards one liner
