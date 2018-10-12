@@ -178,7 +178,7 @@ def test(pairs, args):
         td_model = TDPolicy(channels=1, memsize=args.hidden, num_actions=2)  # a local model for third party
     hm_model = NNPolicy(channels=1, memsize=args.hidden, num_actions=args.num_actions)
     for i in range(len(pairs)):
-        episodes, epr,  done = 0, 0, False
+        episodes, epr,  done = 0, 0, True
         state = torch.tensor(prepro(env.reset()))
         index, path = pairs[i]
         td_model.load_state_dict(torch.load(path))
